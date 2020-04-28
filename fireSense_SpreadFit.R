@@ -290,7 +290,11 @@ spreadFitRun <- function(sim)
                                                  rasterToMatch = sim$flammableRTM, 
                                                  verb = TRUE, areaMultiplier = multiplier,
                                                  field = "NFIREID",
-                                                 minSize = P(sim)$minBufferSize)))
+                                                 minSize = P(sim)$minBufferSize,
+                                                 # cacheId = "033f259a4ad010dd",
+                                                 useCloud = P(sim)$useCloud_DE,
+                                                 cloudFolderID = P(sim)$cloudFolderID_DE
+  )))
   fireBufferedListDT <- purrr::map(fireBufferedListDT, function(.x) {
     if (!is.data.table(.x)) 
       as.data.table(.x)
@@ -455,7 +459,6 @@ spreadFitRun <- function(sim)
     nonAnnualDTx1000 <- lapply(nonAnnualDTx1000, setDF)
     fireBufferedListDT <- lapply(fireBufferedListDT, setDF)
     historicalFires <- lapply(lociList, setDF)
-    
     DE <- Cache(runDEoptim, 
                 landscape = landscape,
                 annualDTx1000 = annualDTx1000,
@@ -517,7 +520,7 @@ spreadFitRun <- function(sim)
 
 spreadFitSave <- function(sim)
 {
-  browser()
+
   moduleName <- current(sim)$moduleName
   timeUnit <- timeunit(sim)
   currentTime <- time(sim, timeUnit)
@@ -599,10 +602,12 @@ spreadFitSave <- function(sim)
     flammableRTM[waterRaster[] == 1] <- NA
     sim$flammableRTM <- flammableRTM
   }
-  
   if (!suppliedElsewhere("firePolys", sim)){
     sim$firePolys <- Cache(getFirePolygons, years = P(sim)$fireYears,
                            studyArea = aggregate(sim$studyArea),
+                           # cacheId = "905a9bf194245088",
+                           useCloud = P(sim)$useCloud_DE,
+                           cloudFolderID = P(sim)$cloudFolderID_DE,
                            pathInputs = Paths$inputPath, userTags = paste0("years:", range(P(sim)$fireYears)))
     # THere are duplicate NFIREID
     sim$firePolys <- lapply(sim$firePolys, function(x) {
@@ -625,6 +630,7 @@ spreadFitSave <- function(sim)
                                    
                                    return(cent)
                                  })
+      # cacheId = d4f297968fe36256
       names(sim$firePoints) <- names(sim$firePolys)
     }
   } else {
