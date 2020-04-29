@@ -459,7 +459,6 @@ spreadFitRun <- function(sim)
     nonAnnualDTx1000 <- lapply(nonAnnualDTx1000, setDF)
     fireBufferedListDT <- lapply(fireBufferedListDT, setDF)
     historicalFires <- lapply(lociList, setDF)
-    
     DE <- Cache(runDEoptim, 
                 landscape = landscape,
                 annualDTx1000 = annualDTx1000,
@@ -654,7 +653,7 @@ spreadFitRun <- function(sim)
 
 spreadFitSave <- function(sim)
 {
-  browser()
+
   moduleName <- current(sim)$moduleName
   timeUnit <- timeunit(sim)
   currentTime <- time(sim, timeUnit)
@@ -736,7 +735,6 @@ spreadFitSave <- function(sim)
     flammableRTM[waterRaster[] == 1] <- NA
     sim$flammableRTM <- flammableRTM
   }
-  
   if (!suppliedElsewhere("firePolys", sim)){
     sim$firePolys <- Cache(getFirePolygons, years = P(sim)$fireYears,
                            studyArea = aggregate(sim$studyArea),
@@ -767,6 +765,7 @@ spreadFitSave <- function(sim)
                                    
                                    return(cent)
                                  })
+      # cacheId = d4f297968fe36256
       names(sim$firePoints) <- names(sim$firePolys)
     }
   } else {
