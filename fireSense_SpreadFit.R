@@ -20,6 +20,7 @@ defineModule(sim, list(
   documentation = list("README.txt", "fireSense_SpreadFit.Rmd"),
   reqdPkgs = list("data.table", "DEoptim", "fastdigest", "kSamples", "magrittr", "parallel", "raster",
                   "rgeos","future",
+                  "PredictiveEcology/pemisc@development",
                   "PredictiveEcology/fireSenseUtils@development (>=0.0.0.9008)",
                   "PredictiveEcology/SpaDES.tools@allowOverlap (>=0.3.4.9002)"),
   parameters = rbind(
@@ -426,7 +427,7 @@ spreadFitRun <- function(sim)
     for (i in 1:10) {
       seed <- sample(1e6, 1)
       set.seed(seed)
-      pars <- lapply(1:1, function(x) runif(length(P(sim)$lower), P(sim)$lower, P(sim)$upper))
+      pars <- lapply(1:96, function(x) runif(length(P(sim)$lower), P(sim)$lower, P(sim)$upper))
       print(pars)
       st1 <- system.time(
         a <- mcmapply(mc.cores = min(8, length(pars)), par = pars, FUN = .objfun, 
@@ -441,13 +442,15 @@ spreadFitRun <- function(sim)
                         tests = c("mad", "SNLL_FS"),
                         #tests = c("SNLL_FS"),
                         covMinMax = covMinMax,
-                        Nreps = 30,#P(sim)$objfunFireReps,
+                        Nreps = P(sim)$objfunFireReps,
                         maxFireSpread = P(sim)$maxFireSpread,
                         verbose = TRUE
                       )
         )
       )
-      vals1 <- append(vals1, purrr::map2(pars, a, function(.x, .y) list(pars = .x, objfun = .y)) )
+      vals1 <<- append(vals1, purrr::map2(pars, a, function(.x, .y) list(pars = .x, objfun = .y)) )
+      browser()
+      
     }
   } else {
     ####################################################################
@@ -459,6 +462,8 @@ spreadFitRun <- function(sim)
     nonAnnualDTx1000 <- lapply(nonAnnualDTx1000, setDF)
     fireBufferedListDT <- lapply(fireBufferedListDT, setDF)
     historicalFires <- lapply(lociList, setDF)
+    
+    # pdf("parameter plots DEoptim 300 iterations.pdf")
     DE <- Cache(runDEoptim, 
                 landscape = landscape,
                 annualDTx1000 = annualDTx1000,
@@ -486,8 +491,17 @@ spreadFitRun <- function(sim)
                 cloudFolderID = P(sim)$cloudFolderID_DE
     )
     if (isTRUE(P(sim)$visualizeDEoptim)) {
+      if (isRstudioServer()) {
+        png(filename = paste0("DE_pars", rndstr(1, 6), ".png"),
+            width = 1000, height = 1200)
+      }
       visualizeDE(DE, cachePath(sim))
+      if (isRstudioServer()) {
+        dev.off()
+      }
+      
     }
+    # dev.off()
     
     DE2 <- if (is(DE, "list")) {
       DE2 <- tail(DE, 1)[[1]]
@@ -522,12 +536,11 @@ spreadFitRun <- function(sim)
               minFireSize = 2,
               # tests = "SNLL_FS",
               tests = "SNLL",
-              Nreps = 3,
+              Nreps = P(sim)$objfunFireReps,
               plot.it = TRUE,
               #bufferedRealHistoricalFiresList,
               verbose = TRUE) #fireSense_SpreadFitRaster
       dev.off()
-      browser()
       
       if (FALSE) { # THIS IS PLOTTING STUFF
         
@@ -753,19 +766,22 @@ spreadFitSave <- function(sim)
     if (!suppliedElsewhere("polyCentroids", sim)){
       message("... preparing polyCentroids")
       yr <- min(P(sim)$fireYears)
-      sim$firePoints <- Cache(lapply, X = sim$firePolys,
+      sim$firePoints <- Cache(mclapply, X = sim$firePolys, 
+                              mc.cores = pemisc::optimalClusterNum(2e3, maxNumClusters = length(sim$firePolys)),
                                  function(X){
                                    print(yr)
                                    ras <- X
                                    ras$ID <- 1:NROW(ras)
-                                   cent <- sf::st_centroid(sf::st_as_sf(ras), of_largest_polygon = TRUE)
-                                   cent <- as(cent, "Spatial")
+                                   # cent <- sf::st_centroid(sf::st_as_sf(ras), of_largest_polygon = TRUE)
+                                   centCoords <- rgeos::gCentroid(ras, byid = TRUE)
+                                   cent <- SpatialPointsDataFrame(centCoords, 
+                                                                  as.data.frame(ras))
+                                   # cent <- as(cent, "Spatial")
                                    # cent <- rgeos::gCentroid(ras, byid = TRUE)
                                    yr <<- yr + 1
-                                   
                                    return(cent)
-                                 })
-      # cacheId = d4f297968fe36256
+                                 },
+                              omitArgs = c("mc.cores"))
       names(sim$firePoints) <- names(sim$firePolys)
     }
   } else {
